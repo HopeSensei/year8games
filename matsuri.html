@@ -204,6 +204,7 @@ td.em{font-size:22px;width:40px}
     <button class="tab" role="tab" id="tab-match" aria-selected="false" data-tab="match">Match up</button>
     <button class="tab" role="tab" id="tab-quiz" aria-selected="false" data-tab="quiz">Quiz</button>
     <button class="tab" role="tab" id="tab-verbs" aria-selected="false" data-tab="verbs">Which verb?</button>
+    <button class="tab" role="tab" id="tab-past" aria-selected="false" data-tab="past">Past tense</button>
     <button class="tab" role="tab" id="tab-list" aria-selected="false" data-tab="list">Word list</button>
   </div>
 
@@ -311,18 +312,52 @@ function verbQuestions(){
 }
 const RULE_VERB=`<div class="rule">noun + ${rb('を','o')} + verb · ${'<span class="jp">'+rb('はなび','hanabi')+rb('を','o')+rb('見ます','mimasu')+'</span>'} (I watch fireworks)</div>`;
 
+/* Past tense. Each form is [japanese, romaji] */
+function forms(w){
+  if(w.set==='verb'){
+    const sj=w.jp.slice(0,-2), sr=w.r.slice(0,-4);
+    return {present:[w.jp,w.r], past:[sj+'ました',sr+'mashita'],
+      wrong:[[w.jp+'でした',w.r+' deshita'],[sj+'かったです',sr+'katta desu'],[sj+'ましたです',sr+'mashita desu']]};
+  }
+  if(w.jp.endsWith('い')&&!w.jp.includes('（')){
+    const sj=w.jp.slice(0,-1), sr=w.r.slice(0,-1);
+    return {present:[w.jp+'です',w.r+' desu'], past:[sj+'かったです',sr+'katta desu'],
+      wrong:[[w.jp+'でした',w.r+' deshita'],[sj+'かったでした',sr+'katta deshita'],[w.jp+'かったです',w.r+'katta desu']]};
+  }
+  const b=w.jp.replace('（な）',''), br=w.r.replace(' (na)','');
+  return {present:[b+'です',br+' desu'], past:[b+'でした',br+' deshita'],
+    wrong:[w.id==='kirei'?['きれかったです','kirekatta desu']:[b+'かったです',br+'katta desu'],[b+'だったです',br+' datta desu'],[b+'なでした',br+' na deshita']]};
+}
+const fj=(f,cls='sm')=>`<span class="w-jp ${cls}">${rb(f[0],f[1])}</span>`;
+const pastPool=()=>{const v=val('pastSet');return A.filter(w=>v==='both'?(w.set==='verb'||w.set==='adj'):w.set===v)};
+function pastQuestions(){
+  const p=pastPool(), qs=[]; let last=null;
+  while(qs.length<10){const it=p[Math.floor(Math.random()*p.length)]; if(it!==last){qs.push(it);last=it}}
+  return qs.map(w=>{const f=forms(w);return {
+    prompt:'Choose the past tense.',
+    show:`<span class="stack">${fj(f.present)}<span class="hint">${w.em} ${w.en}</span></span>`,
+    opts:shuffle([{html:fj(f.past),ok:true},...f.wrong.map(x=>({html:fj(x),ok:false}))])};});
+}
+const jr=(j,r)=>`<span class="jp">${rb(j,r)}</span>`;
+const RULE_PAST=`<div class="rule"><b>Verbs:</b> ます → ました · ${jr('見ます','mimasu')} → ${jr('見ました','mimashita')}<br>
+  <b>い adjectives:</b> drop い, add かったです · ${jr('あつい','atsui')} → ${jr('あつかったです','atsukatta desu')}<br>
+  <b>な adjectives:</b> add でした · ${jr('きれい','kirei')} → ${jr('きれいでした','kirei deshita')}</div>`;
+
 const matsuri={
   seal:'🏮', title:'Festival words', sub:'Festivals, food, verbs, describing words and transport', quizTab:'Quiz',
   ask:`${rb('まつり','matsuri')}${rb('で','de')}${rb('なに','nani')}${rb('を','o')}${rb('しますか','shimasu ka')}？`,
   fields:[
-    {id:'pairType',label:'Match',opts:[['jp-en','Japanese ↔ English'],['opp','Opposites']],
+    {id:'pairType',label:'Match',opts:[['jp-en','Japanese ↔ English'],['opp','Opposites'],['past','Present ↔ Past']],
      show:tab=>tab==='memory'||tab==='match'},
     {id:'wordSet',label:'Words',opts:SETS,
-     show:tab=>tab==='quiz'||((tab==='memory'||tab==='match')&&val('pairType')!=='opp')}
+     show:tab=>tab==='quiz'||((tab==='memory'||tab==='match')&&val('pairType')==='jp-en')},
+    {id:'pastSet',label:'Words',opts:[['verb','Verbs'],['adj','Adjectives'],['both','Verbs + adjectives']],
+     show:tab=>tab==='past'||((tab==='memory'||tab==='match')&&val('pairType')==='past')}
   ],
   memory:{max:6, ratio:'5/4'},
   pairs(){
     if(val('pairType')==='opp') return OPP.map(([a,b])=>({key:a,a:jpFace(aById(a)),b:jpFace(aById(b))}));
+    if(val('pairType')==='past') return pastPool().map(w=>{const f=forms(w);return {key:w.id,a:fj(f.present),b:fj(f.past)}});
     return aPool().map(w=>({key:w.id,a:jpFace(w),b:enFace(w)}));
   },
   questions(){
@@ -344,6 +379,7 @@ const matsuri={
       <li><span class="jp">${rb('きます','kimasu')}</span> (to wear) sounds the same as <span class="jp">${rb('きます','kimasu')}</span> (to come). Use the sentence to tell them apart.</li>
       <li>Use ${rb('を','o')} before the verb: <span class="jp">${rb('ゆかた','yukata')}${rb('を','o')}${rb('きます','kimasu')}</span> (I wear a yukata).</li>
       <li>Use ${rb('で','de')} after transport: <span class="jp">${rb('でんしゃ','densha')}${rb('で','de')}</span> (by train). <span class="jp">${rb('あるいて','aruite')}</span> (on foot) does not take ${rb('で','de')}.</li>
+      <li><b>Past tense:</b> verbs change ます to ました (${rb('食べました','tabemashita')}). い adjectives drop い and add かったです (${rb('たのしかったです','tanoshikatta desu')}). な adjectives add でした (${rb('にぎやかでした','nigiyaka deshita')}).</li>
     </ul>`;
   }
 };
@@ -450,7 +486,7 @@ function runQuiz(qs,rule=''){
   show();
 }
 
-const GAMES={memory,match:matchup,quiz,verbs:()=>runQuiz(verbQuestions(),RULE_VERB),list:()=>{stage.innerHTML=T().list()}};
+const GAMES={memory,match:matchup,quiz,verbs:()=>runQuiz(verbQuestions(),RULE_VERB),past:()=>runQuiz(pastQuestions(),RULE_PAST),list:()=>{stage.innerHTML=T().list()}};
 
 function buildTopic(){
   const t=T();
